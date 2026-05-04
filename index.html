@@ -2,13 +2,34 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<!-- Privacy Metadata: Tells search engines to stay away -->
+<meta name="robots" content="noindex, nofollow">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#1a1a1a" media="(prefers-color-scheme: dark)">
-<title>Habits</title>
+<title>404 Not Found</title>
+
 <style>
+/* FAKE 404 STYLES */
+#gatekeeper {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: #fff;
+    color: #000;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+}
+.error-box { max-width: 600px; padding: 20px; }
+.error-box h1 { font-size: 24px; border-right: 1px solid rgba(0,0,0,.3); margin: 0 20px 0 0; padding: 10px 20px 10px 0; display: inline-block; vertical-align: top; }
+.error-msg { display: inline-block; text-align: left; line-height: 49px; height: 49px; vertical-align: middle; }
+.error-msg h2 { font-size: 14px; font-weight: normal; margin: 0; line-height: inherit; }
+#pass-input { margin-top: 30px; padding: 10px; border: 1px solid #ddd; border-radius: 5px; text-align: center; display: block; }
+
+/* YOUR ORIGINAL APP STYLES */
 :root {
   --color-background-primary: #ffffff;
   --color-background-secondary: #f5f5f3;
@@ -41,12 +62,15 @@
     --color-text-warning: #FAC775;
     --color-background-warning: #3d2906;
   }
+  #gatekeeper { background: #1a1a1a; color: #fff; }
+  #gatekeeper h1 { border-right-color: rgba(255,255,255,.3); }
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; font-family: var(--font-sans); background: var(--color-background-secondary); color: var(--color-text-primary); -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent; }
+/* ... (Rest of your original CSS stays here) ... */
 input, button, select, textarea { font-family: inherit; }
 button { -webkit-appearance: none; appearance: none; }
-.app-frame { max-width: 480px; margin: 0 auto; padding: max(env(safe-area-inset-top, 16px), 16px) 0 max(env(safe-area-inset-bottom, 16px), 16px); min-height: 100vh; }
+.app-frame { max-width: 480px; margin: 0 auto; padding: max(env(safe-area-inset-top, 16px), 16px) 0 max(env(safe-area-inset-bottom, 16px), 16px); min-height: 100vh; display: none; /* Hidden by default */ }
 .app-status { display: flex; justify-content: space-between; align-items: center; padding: 0 16px 10px; font-size: 11px; color: var(--color-text-tertiary); font-weight: 500; }
 .app-screen { background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: 28px; overflow: hidden; margin: 0 12px; }
 .app-header { padding: 22px 22px 18px; }
@@ -142,7 +166,20 @@ button { -webkit-appearance: none; appearance: none; }
 </style>
 </head>
 <body>
-<div class="app-frame">
+
+<!-- GATEKEEPER SCREEN -->
+<div id="gatekeeper">
+    <div class="error-box">
+        <h1>404</h1>
+        <div class="error-msg">
+            <h2>The requested URL was not found on this server.</h2>
+        </div>
+        <input type="password" id="pass-input" placeholder="••••" autofocus>
+    </div>
+</div>
+
+<!-- YOUR APP CONTENT -->
+<div class="app-frame" id="app-content">
   <div class="app-status">
     <span id="phone-time">9:41</span>
     <span style="font-weight: 500;">Habits</span>
@@ -163,447 +200,472 @@ button { -webkit-appearance: none; appearance: none; }
     <div class="app-body" id="app-body"></div>
   </div>
 </div>
+
 <input type="file" id="import-file" accept="application/json" style="display: none;" />
+
 <script>
+// PASSCODE LOGIC
 (function() {
-  const KEY = 'habit_tracker_v1';
-  const today = () => new Date().toISOString().slice(0, 10);
-  const daysAgo = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
-  const todayDow = () => { const d = new Date().getDay(); return d === 0 ? 6 : d - 1; };
-  const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  const dayNamesFull = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-  const minutesNow = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
-  const parseHM = (str) => { const [h, m] = str.split(':').map(Number); return h * 60 + m; };
-  const fmtNow = () => { const d = new Date(); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
+    const SECRET_CODE = "1234"; // CHANGE THIS PASSWORD!
+    const gate = document.getElementById('gatekeeper');
+    const content = document.getElementById('app-content');
+    const input = document.getElementById('pass-input');
 
-  const seedSchedule = (push, pull) => ([
-    { time: '08:30', text: 'Wake, water, scooter unplug' },
-    { time: '09:00', text: 'Light breakfast' },
-    { time: '09:30', text: 'Scooter to Basic-Fit Gare Centrale' },
-    { time: '10:00', text: push ? 'Push session' : (pull ? 'Pull session' : 'Legs session') },
-    { time: '12:00', text: 'Home, shower, lunch' },
-    { time: '13:00', text: 'PV applications block' },
-    { time: '15:30', text: 'Side hustle uploads block' },
-    { time: '17:30', text: 'Cook + meal prep' },
-    { time: '19:00', text: 'Open block' },
-    { time: '23:30', text: 'Wind down, scooter on charge' }
-  ]);
-
-  let data = {
-    categories: [
-      { id: 'gym', name: 'Gym' },
-      { id: 'supps', name: 'Supplements & Medication' },
-      { id: 'groom', name: 'Grooming' },
-    ],
-    habits: [
-      { id: 'h1', cat: 'gym', name: 'Weight Lifting Session' },
-      { id: 'h2', cat: 'supps', name: 'Finasteride' },
-      { id: 'h3', cat: 'supps', name: 'Vitamin D3' },
-      { id: 'h4', cat: 'supps', name: 'Omega-3' },
-      { id: 'h5', cat: 'supps', name: 'ZMA' },
-      { id: 'h6', cat: 'groom', name: 'Nizoral' },
-      { id: 'h7', cat: 'groom', name: 'Brush Teeth' },
-      { id: 'h8', cat: 'groom', name: 'Corsodyl' },
-      { id: 'h9', cat: 'groom', name: 'Eyebrow Serum' },
-      { id: 'h10', cat: 'groom', name: 'Minoxidil for Beard' },
-      { id: 'h11', cat: 'groom', name: 'Moisturise' },
-      { id: 'h12', cat: 'groom', name: 'Suction Cup' },
-    ],
-    hustleHabits: [
-      { id: 'sh1', name: 'PianoFLPs Upload' },
-      { id: 'sh2', name: 'VisualMIDIs Upload' },
-      { id: 'sh3', name: 'Easy Melodic Upload' },
-      { id: 'sh4', name: 'ChessClipper Upload' },
-    ],
-    weeklyReminders: [
-      { id: 'wr1', name: 'Bins Out', days: [0, 3] },
-      { id: 'wr2', name: 'Charge Scooter', days: [0, 1, 2, 3, 4, 5, 6] },
-    ],
-    schedule: {
-      0: seedSchedule(true, false),
-      1: seedSchedule(false, true),
-      2: [{ time: '08:30', text: 'Wake, water, scooter unplug' },{ time: '09:00', text: 'Light breakfast' },{ time: '09:30', text: 'Scooter to Basic-Fit Gare Centrale' },{ time: '10:00', text: 'Legs session' },{ time: '12:00', text: 'Home, shower, lunch' },{ time: '13:00', text: 'PV applications block' },{ time: '15:30', text: 'Side hustle uploads block' },{ time: '17:30', text: 'Cook + meal prep' },{ time: '19:00', text: 'Open block' },{ time: '23:30', text: 'Wind down, scooter on charge' }],
-      3: [{ time: '09:00', text: 'Wake, water' },{ time: '09:30', text: 'Light breakfast' },{ time: '10:00', text: 'Walk Elisabeth Park (active rest)' },{ time: '11:00', text: 'PV applications block (Muntpunt or home)' },{ time: '14:00', text: 'Side hustle deep work block' },{ time: '17:30', text: 'Cook + meal prep' },{ time: '19:00', text: 'Open block' },{ time: '23:30', text: 'Wind down, scooter on charge' }],
-      4: seedSchedule(true, false),
-      5: [{ time: '10:00', text: 'Wake, lazy breakfast' },{ time: '11:30', text: 'Pull session (gym)' },{ time: '14:00', text: 'ChessClipper deep work' },{ time: '17:00', text: 'Free / social' }],
-      6: [{ time: '10:00', text: 'Wake, lazy breakfast' },{ time: '11:30', text: 'Walk + active rest' },{ time: '14:00', text: 'Week review + plan next week' },{ time: '17:00', text: 'Free / social' }],
-    },
-    log: {},
-    hustleLog: {},
-    weeklyRemLog: {},
-    protein: {},
-    proteinTarget: 150,
-    weekViewDay: null,
-  };
-  let activeTab = 'today';
-  let showAddHabit = false, showAddCat = false, showAddHustle = false, showAddRem = false;
-  let newRemDays = [];
-  let nowTimer = null;
-
-  function load() {
-    try {
-      const stored = localStorage.getItem(KEY);
-      if (stored) Object.assign(data, JSON.parse(stored));
-    } catch (e) { console.warn('load failed', e); }
-    if (data.weekViewDay === null || data.weekViewDay === undefined) data.weekViewDay = todayDow();
-    setHeader();
-    render();
-  }
-  function save() {
-    try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) { console.warn('save failed', e); }
-  }
-
-  function setHeader() {
-    const now = new Date();
-    const h = now.getHours();
-    let g = 'Good morning';
-    if (h >= 12 && h < 18) g = 'Good afternoon';
-    else if (h >= 18) g = 'Good evening';
-    document.getElementById('greet').textContent = g + ', Eoghan';
-    document.getElementById('date-line').textContent = now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
-    document.getElementById('phone-time').textContent = now.toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit', hour12: false });
-  }
-  function renderHero() {
-    const d = today();
-    const total = data.habits.length;
-    const done = data.habits.filter(h => isDone(h.id, d)).length;
-    const todayProtein = data.protein[d] || 0;
-    const html = '<div class="hero-stat"><div class="hero-stat-label">Today</div><div class="hero-stat-val">' + done + '<span class="small">/' + total + '</span></div></div>' +
-                 '<div class="hero-stat"><div class="hero-stat-label">Protein</div><div class="hero-stat-val">' + Math.round(todayProtein) + '<span class="small">g</span></div></div>';
-    document.getElementById('hero-stats').innerHTML = html;
-  }
-
-  function isDone(id, d) { return !!(data.log[d] && data.log[d][id]); }
-  function toggleHabit(id) { const d = today(); if (!data.log[d]) data.log[d] = {}; data.log[d][id] = !data.log[d][id]; save(); render(); }
-  function isHustleDone(id, d) { return !!(data.hustleLog[d] && data.hustleLog[d][id]); }
-  function toggleHustle(id) { const d = today(); if (!data.hustleLog[d]) data.hustleLog[d] = {}; data.hustleLog[d][id] = !data.hustleLog[d][id]; save(); render(); }
-  function isRemDone(id, w) { return !!(data.weeklyRemLog[w] && data.weeklyRemLog[w][id]); }
-  function toggleRem(id) { const wk = getWeekKey(); if (!data.weeklyRemLog[wk]) data.weeklyRemLog[wk] = {}; data.weeklyRemLog[wk][id] = !data.weeklyRemLog[wk][id]; save(); render(); }
-  function getWeekKey() { const d = new Date(); const o = new Date(d.getFullYear(), 0, 1); const w = Math.ceil((((d - o) / 86400000) + o.getDay() + 1) / 7); return d.getFullYear() + '-W' + w; }
-  function get30Day(id) { const arr = []; for (let i = 29; i >= 0; i--) arr.push(isDone(id, daysAgo(i))); return arr; }
-
-  function render() {
-    if (nowTimer) { clearInterval(nowTimer); nowTimer = null; }
-    document.querySelectorAll('.app-tab').forEach(el => el.classList.toggle('active', el.getAttribute('data-tab') === activeTab));
-    renderHero();
-    const body = document.getElementById('app-body');
-    if (activeTab === 'today') body.innerHTML = renderToday();
-    else if (activeTab === 'hustle') body.innerHTML = renderHustle();
-    else if (activeTab === 'schedule') { body.innerHTML = renderSchedule(); positionNowLine(); nowTimer = setInterval(positionNowLine, 60000); }
-    else if (activeTab === 'manage') body.innerHTML = renderManage();
-    else body.innerHTML = renderStats();
-    bindEvents();
-  }
-
-  function renderToday() {
-    const d = today();
-    const todayProtein = data.protein[d] || 0;
-    const total = data.habits.length;
-    const done = data.habits.filter(h => isDone(h.id, d)).length;
-    const pct = data.proteinTarget > 0 ? Math.min(100, Math.round(todayProtein / data.proteinTarget * 100)) : 0;
-    let html = '';
-
-    const wk = getWeekKey();
-    const tIdx = todayDow();
-    const dueRems = data.weeklyReminders.filter(r => r.days.includes(tIdx));
-    if (dueRems.length > 0) {
-      html += '<div class="due-card"><div class="section-title" style="margin-bottom: 4px;">Due today</div>';
-      dueRems.forEach(r => {
-        const ck = isRemDone(r.id, wk);
-        html += '<div class="habit-row" data-rem="' + r.id + '" style="padding: 8px 0;"><div class="checkbox' + (ck ? ' checked' : '') + '"><svg viewBox="0 0 12 12"><path d="M2 6l3 3 5-6" stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="habit-name' + (ck ? ' done' : '') + '">' + r.name + '</span><span class="day-pill-mini">weekly</span></div>';
-      });
-      html += '</div>';
-    }
-
-    html += '<div class="protein-card"><div class="protein-row"><span class="protein-label">Protein</span><span class="protein-val">' + Math.round(todayProtein) + 'g <span class="target">of ' + data.proteinTarget + 'g</span></span></div><div class="protein-bar-bg"><div class="protein-bar-fill" style="width: ' + pct + '%"></div></div><div class="protein-input-row"><input type="number" id="protein-add" placeholder="Add grams" inputmode="numeric" /><button class="btn-primary" id="protein-btn">Add</button></div></div>';
-    html += '<div class="section-head spaced"><p class="section-title">Habits</p><span class="section-count">' + done + ' of ' + total + '</span></div>';
-
-    data.categories.forEach(cat => {
-      const habits = data.habits.filter(h => h.cat === cat.id);
-      if (habits.length === 0) return;
-      const catDone = habits.filter(h => isDone(h.id, d)).length;
-      html += '<div class="cat-card"><div class="cat-head' + (habits.length === 1 ? ' no-border' : '') + '"><span class="cat-name">' + cat.name + '</span><span class="cat-meta">' + catDone + ' / ' + habits.length + '</span></div>';
-      habits.forEach(h => {
-        const ck = isDone(h.id, d);
-        html += '<div class="habit-row" data-habit="' + h.id + '"><div class="checkbox' + (ck ? ' checked' : '') + '"><svg viewBox="0 0 12 12"><path d="M2 6l3 3 5-6" stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="habit-name' + (ck ? ' done' : '') + '">' + h.name + '</span></div>';
-      });
-      html += '</div>';
-    });
-    return html;
-  }
-
-  function renderHustle() {
-    const d = today();
-    const total = data.hustleHabits.length;
-    const done = data.hustleHabits.filter(h => isHustleDone(h.id, d)).length;
-    let html = '<div class="section-head"><p class="section-title">Today\'s uploads</p><span class="section-count">' + done + ' of ' + total + '</span></div>';
-
-    if (data.hustleHabits.length === 0) {
-      html += '<div class="empty">No hustle items yet. Add one in Manage.</div>';
-    } else {
-      html += '<div class="cat-card"><div class="cat-head no-border" style="padding-bottom: 4px;"><span class="cat-name">Channels</span></div>';
-      data.hustleHabits.forEach(h => {
-        const ck = isHustleDone(h.id, d);
-        html += '<div class="habit-row" data-hustle="' + h.id + '"><div class="checkbox' + (ck ? ' checked' : '') + '"><svg viewBox="0 0 12 12"><path d="M2 6l3 3 5-6" stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="habit-name' + (ck ? ' done' : '') + '">' + h.name + '</span></div>';
-      });
-      html += '</div>';
-    }
-
-    let total7 = 0, possible7 = 0;
-    for (let i = 0; i < 7; i++) {
-      const day = daysAgo(i);
-      data.hustleHabits.forEach(h => { possible7++; if (isHustleDone(h.id, day)) total7++; });
-    }
-    const pct7 = possible7 > 0 ? Math.round(total7 / possible7 * 100) : 0;
-    html += '<div class="section-head spaced"><p class="section-title">Last 7 days</p><span class="section-count">' + pct7 + '%</span></div>';
-    if (data.hustleHabits.length > 0) {
-      html += '<div class="cat-card">';
-      data.hustleHabits.forEach((h, idx) => {
-        const arr = [];
-        for (let i = 6; i >= 0; i--) arr.push(isHustleDone(h.id, daysAgo(i)));
-        const cells = arr.map(d2 => '<div class="grid-cell' + (d2 ? ' done' : '') + '"></div>').join('');
-        const count = arr.filter(Boolean).length;
-        const isLast = idx === data.hustleHabits.length - 1;
-        html += '<div class="habit-stat"' + (isLast ? ' style="border-bottom: none;"' : '') + '><div class="habit-stat-head"><span class="habit-stat-name">' + h.name + '</span><span class="habit-stat-meta">' + count + ' / 7</span></div><div class="grid-7">' + cells + '</div></div>';
-      });
-      html += '</div>';
-    }
-    return html;
-  }
-
-  function renderSchedule() {
-    const tIdx = todayDow();
-    let html = '<div class="day-pill-row">';
-    dayNames.forEach((name, i) => {
-      const cls = ['day-pill', i === data.weekViewDay ? 'active' : '', i === tIdx ? 'is-today' : ''].filter(Boolean).join(' ');
-      html += '<div class="' + cls + '" data-day="' + i + '">' + name + '</div>';
-    });
-    html += '</div>';
-
-    const blocks = data.schedule[data.weekViewDay] || [];
-    const isToday = data.weekViewDay === tIdx;
-    const nowMin = isToday ? minutesNow() : -1;
-
-    html += '<div class="cat-card"><div class="sched-day-name">' + dayNamesFull[data.weekViewDay] + (isToday ? '<span class="today-tag">today</span>' : '') + '</div>';
-    if (blocks.length === 0) {
-      html += '<div class="empty">No blocks for this day.</div>';
-    } else {
-      html += '<div class="sched-list" id="sched-list">';
-      blocks.forEach((b, i) => {
-        const blockMin = parseHM(b.time);
-        const next = blocks[i + 1];
-        const nextMin = next ? parseHM(next.time) : 24 * 60;
-        let stateCls = '';
-        if (isToday) {
-          if (nowMin >= blockMin && nowMin < nextMin) stateCls = ' current';
-          else if (nowMin >= nextMin) stateCls = ' past';
+    input.addEventListener('keypress', function (e) {
+        if (e.key === 'Enter') {
+            if (input.value === SECRET_CODE) {
+                gate.style.display = 'none';
+                content.style.display = 'block';
+                // Trigger your original app start
+                startApp();
+            } else {
+                alert("Incorrect.");
+                input.value = "";
+            }
         }
-        html += '<div class="sched-block' + stateCls + '" data-block-min="' + blockMin + '" data-block-next="' + nextMin + '"><div class="sched-time">' + b.time + '</div><div class="sched-text">' + b.text + '</div></div>';
-      });
-      if (isToday) html += '<div class="now-line" id="now-line" style="display: none;"><span class="now-time" id="now-time">' + fmtNow() + '</span><span class="now-bar"></span></div>';
-      html += '</div>';
-    }
-    html += '</div>';
-    html += '<div class="sched-hint">Loose plan, edit and adapt as you go.</div>';
-    return html;
-  }
-
-  function positionNowLine() {
-    const line = document.getElementById('now-line');
-    if (!line) return;
-    const isToday = data.weekViewDay === todayDow();
-    if (!isToday) { line.style.display = 'none'; return; }
-    const list = document.getElementById('sched-list');
-    if (!list) return;
-    const blocks = list.querySelectorAll('.sched-block');
-    if (blocks.length === 0) { line.style.display = 'none'; return; }
-    const nowMin = minutesNow();
-    document.getElementById('now-time').textContent = fmtNow();
-
-    const firstBlock = blocks[0];
-    const lastBlock = blocks[blocks.length - 1];
-    const firstMin = parseInt(firstBlock.getAttribute('data-block-min'));
-    const lastMin = parseInt(lastBlock.getAttribute('data-block-min'));
-
-    let topPx;
-    if (nowMin < firstMin) topPx = firstBlock.offsetTop - 6;
-    else if (nowMin >= lastMin) {
-      const lastNext = parseInt(lastBlock.getAttribute('data-block-next'));
-      const into = Math.min(1, (nowMin - lastMin) / Math.max(1, (lastNext - lastMin)));
-      topPx = lastBlock.offsetTop + lastBlock.offsetHeight * into;
-    } else {
-      let foundBlock = null;
-      for (let i = 0; i < blocks.length; i++) {
-        const bMin = parseInt(blocks[i].getAttribute('data-block-min'));
-        const nMin = parseInt(blocks[i].getAttribute('data-block-next'));
-        if (nowMin >= bMin && nowMin < nMin) { foundBlock = blocks[i]; break; }
-      }
-      if (foundBlock) {
-        const bMin = parseInt(foundBlock.getAttribute('data-block-min'));
-        const nMin = parseInt(foundBlock.getAttribute('data-block-next'));
-        const frac = (nowMin - bMin) / Math.max(1, (nMin - bMin));
-        topPx = foundBlock.offsetTop + foundBlock.offsetHeight * frac;
-      } else {
-        topPx = firstBlock.offsetTop;
-      }
-    }
-    line.style.top = topPx + 'px';
-    line.style.display = 'flex';
-
-    blocks.forEach(b => {
-      const bMin = parseInt(b.getAttribute('data-block-min'));
-      const nMin = parseInt(b.getAttribute('data-block-next'));
-      b.classList.remove('past', 'current');
-      if (nowMin >= bMin && nowMin < nMin) b.classList.add('current');
-      else if (nowMin >= nMin) b.classList.add('past');
-    });
-  }
-
-  function renderManage() {
-    let html = '<div class="section-head"><p class="section-title">Categories</p><span class="add-link" id="add-cat-toggle">+ add</span></div>';
-    if (showAddCat) html += '<div class="add-form"><input type="text" id="new-cat-name" placeholder="Category name" /><button class="btn-primary" id="save-cat" style="width: 100%; height: 40px;">Save</button></div>';
-    data.categories.forEach(c => {
-      const count = data.habits.filter(h => h.cat === c.id).length;
-      html += '<div class="manage-item"><div><div class="manage-item-name">' + c.name + '</div><div class="manage-item-meta">' + count + ' habits</div></div><span class="del-x" data-del-cat="' + c.id + '">remove</span></div>';
     });
 
-    html += '<div class="section-head spaced"><p class="section-title">Personal habits</p><span class="add-link" id="add-habit-toggle">+ add</span></div>';
-    if (showAddHabit) {
-      let opts = data.categories.map(c => '<option value="' + c.id + '">' + c.name + '</option>').join('');
-      html += '<div class="add-form"><input type="text" id="new-habit-name" placeholder="Habit name" /><select id="new-habit-cat">' + opts + '</select><button class="btn-primary" id="save-habit" style="width: 100%; height: 40px;">Save</button></div>';
-    }
-    data.habits.forEach(h => {
-      const cat = data.categories.find(c => c.id === h.cat);
-      html += '<div class="manage-item"><div><div class="manage-item-name">' + h.name + '</div><div class="manage-item-meta">' + (cat ? cat.name : 'uncategorised') + '</div></div><span class="del-x" data-del-habit="' + h.id + '">remove</span></div>';
-    });
+    function startApp() {
+        // ... (Your original app JavaScript) ...
+        const KEY = 'habit_tracker_v1';
+        const today = () => new Date().toISOString().slice(0, 10);
+        const daysAgo = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+        const todayDow = () => { const d = new Date().getDay(); return d === 0 ? 6 : d - 1; };
+        const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        const dayNamesFull = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+        const minutesNow = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
+        const parseHM = (str) => { const [h, m] = str.split(':').map(Number); return h * 60 + m; };
+        const fmtNow = () => { const d = new Date(); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
 
-    html += '<div class="section-head spaced"><p class="section-title">Side hustle items</p><span class="add-link" id="add-hustle-toggle">+ add</span></div>';
-    if (showAddHustle) html += '<div class="add-form"><input type="text" id="new-hustle-name" placeholder="Hustle item name" /><button class="btn-primary" id="save-hustle" style="width: 100%; height: 40px;">Save</button></div>';
-    data.hustleHabits.forEach(h => {
-      html += '<div class="manage-item"><div class="manage-item-name">' + h.name + '</div><span class="del-x" data-del-hustle="' + h.id + '">remove</span></div>';
-    });
+        const seedSchedule = (push, pull) => ([
+            { time: '08:30', text: 'Wake, water, scooter unplug' },
+            { time: '09:00', text: 'Light breakfast' },
+            { time: '09:30', text: 'Scooter to Basic-Fit Gare Centrale' },
+            { time: '10:00', text: push ? 'Push session' : (pull ? 'Pull session' : 'Legs session') },
+            { time: '12:00', text: 'Home, shower, lunch' },
+            { time: '13:00', text: 'PV applications block' },
+            { time: '15:30', text: 'Side hustle uploads block' },
+            { time: '17:30', text: 'Cook + meal prep' },
+            { time: '19:00', text: 'Open block' },
+            { time: '23:30', text: 'Wind down, scooter on charge' }
+        ]);
 
-    html += '<div class="section-head spaced"><p class="section-title">Weekly reminders</p><span class="add-link" id="add-rem-toggle">+ add</span></div>';
-    if (showAddRem) {
-      let dayChecks = dayNames.map((n, i) => '<span class="day-check' + (newRemDays.includes(i) ? ' on' : '') + '" data-rem-day="' + i + '">' + n + '</span>').join('');
-      html += '<div class="add-form"><input type="text" id="new-rem-name" placeholder="Reminder name" /><div class="day-checks">' + dayChecks + '</div><button class="btn-primary" id="save-rem" style="width: 100%; height: 40px;">Save</button></div>';
-    }
-    data.weeklyReminders.forEach(r => {
-      const dayLabels = r.days.map(d => dayNames[d]).join(', ');
-      html += '<div class="manage-item"><div><div class="manage-item-name">' + r.name + '</div><div class="manage-item-meta">' + dayLabels + '</div></div><span class="del-x" data-del-rem="' + r.id + '">remove</span></div>';
-    });
+        let data = {
+            categories: [
+                { id: 'gym', name: 'Gym' },
+                { id: 'supps', name: 'Supplements & Medication' },
+                { id: 'groom', name: 'Grooming' },
+            ],
+            habits: [
+                { id: 'h1', cat: 'gym', name: 'Weight Lifting Session' },
+                { id: 'h2', cat: 'supps', name: 'Finasteride' },
+                { id: 'h3', cat: 'supps', name: 'Vitamin D3' },
+                { id: 'h4', cat: 'supps', name: 'Omega-3' },
+                { id: 'h5', cat: 'supps', name: 'ZMA' },
+                { id: 'h6', cat: 'groom', name: 'Nizoral' },
+                { id: 'h7', cat: 'groom', name: 'Brush Teeth' },
+                { id: 'h8', cat: 'groom', name: 'Corsodyl' },
+                { id: 'h9', cat: 'groom', name: 'Eyebrow Serum' },
+                { id: 'h10', cat: 'groom', name: 'Minoxidil for Beard' },
+                { id: 'h11', cat: 'groom', name: 'Moisturise' },
+                { id: 'h12', cat: 'groom', name: 'Suction Cup' },
+            ],
+            hustleHabits: [
+                { id: 'sh1', name: 'PianoFLPs Upload' },
+                { id: 'sh2', name: 'VisualMIDIs Upload' },
+                { id: 'sh3', name: 'Easy Melodic Upload' },
+                { id: 'sh4', name: 'ChessClipper Upload' },
+            ],
+            weeklyReminders: [
+                { id: 'wr1', name: 'Bins Out', days: [0, 3] },
+                { id: 'wr2', name: 'Charge Scooter', days: [0, 1, 2, 3, 4, 5, 6] },
+            ],
+            schedule: {
+                0: seedSchedule(true, false),
+                1: seedSchedule(false, true),
+                2: [{ time: '08:30', text: 'Wake, water, scooter unplug' },{ time: '09:00', text: 'Light breakfast' },{ time: '09:30', text: 'Scooter to Basic-Fit Gare Centrale' },{ time: '10:00', text: 'Legs session' },{ time: '12:00', text: 'Home, shower, lunch' },{ time: '13:00', text: 'PV applications block' },{ time: '15:30', text: 'Side hustle uploads block' },{ time: '17:30', text: 'Cook + meal prep' },{ time: '19:00', text: 'Open block' },{ time: '23:30', text: 'Wind down, scooter on charge' }],
+                3: [{ time: '09:00', text: 'Wake, water' },{ time: '09:30', text: 'Light breakfast' },{ time: '10:00', text: 'Walk Elisabeth Park (active rest)' },{ time: '11:00', text: 'PV applications block (Muntpunt or home)' },{ time: '14:00', text: 'Side hustle deep work block' },{ time: '17:30', text: 'Cook + meal prep' },{ time: '19:00', text: 'Open block' },{ time: '23:30', text: 'Wind down, scooter on charge' }],
+                4: seedSchedule(true, false),
+                5: [{ time: '10:00', text: 'Wake, lazy breakfast' },{ time: '11:30', text: 'Pull session (gym)' },{ time: '14:00', text: 'ChessClipper deep work' },{ time: '17:00', text: 'Free / social' }],
+                6: [{ time: '10:00', text: 'Wake, lazy breakfast' },{ time: '11:30', text: 'Walk + active rest' },{ time: '14:00', text: 'Week review + plan next week' },{ time: '17:00', text: 'Free / social' }],
+            },
+            log: {},
+            hustleLog: {},
+            weeklyRemLog: {},
+            protein: {},
+            proteinTarget: 150,
+            weekViewDay: null,
+        };
+        let activeTab = 'today';
+        let showAddHabit = false, showAddCat = false, showAddHustle = false, showAddRem = false;
+        let newRemDays = [];
+        let nowTimer = null;
 
-    html += '<div class="section-head spaced"><p class="section-title">Settings</p></div>';
-    html += '<div class="manage-item" style="display: block;"><div class="manage-item-name" style="margin-bottom: 8px;">Protein target</div><input type="number" id="protein-target" value="' + data.proteinTarget + '" inputmode="numeric" style="width: 100%; height: 38px; font-size: 14px; padding: 0 12px; border: 0.5px solid var(--color-border-secondary); border-radius: 10px; background: var(--color-background-primary); color: var(--color-text-primary);" /></div>';
-
-    html += '<div class="section-head spaced"><p class="section-title">Data</p></div>';
-    html += '<div class="manage-item" style="display: block;">';
-    html += '<div class="manage-item-meta" style="margin-bottom: 8px;">Backup or move data between devices</div>';
-    html += '<div class="data-actions"><button class="data-btn" id="export-btn">Export JSON</button><button class="data-btn" id="import-btn">Import JSON</button><button class="data-btn" id="reset-btn" style="color: var(--color-text-warning);">Reset all data</button></div>';
-    html += '</div>';
-    return html;
-  }
-
-  function renderStats() {
-    let total7 = 0, possible7 = 0;
-    for (let i = 0; i < 7; i++) {
-      const day = daysAgo(i);
-      data.habits.forEach(h => { possible7++; if (isDone(h.id, day)) total7++; });
-    }
-    const pct7 = possible7 > 0 ? Math.round(total7 / possible7 * 100) : 0;
-    const totalHabits = data.habits.length;
-
-    let html = '<div style="display: flex; gap: 8px; margin-bottom: 16px;">' +
-               '<div class="hero-stat" style="flex: 1;"><div class="hero-stat-label">7-day rate</div><div class="hero-stat-val">' + pct7 + '<span class="small">%</span></div></div>' +
-               '<div class="hero-stat" style="flex: 1;"><div class="hero-stat-label">Habits</div><div class="hero-stat-val">' + totalHabits + '</div></div>' +
-               '</div>';
-
-    html += '<div class="section-head"><p class="section-title">30-day history</p></div>';
-    if (data.habits.length === 0) {
-      html += '<div class="empty">Add habits to see history.</div>';
-    } else {
-      html += '<div class="cat-card">';
-      data.habits.forEach((h, idx) => {
-        const arr = get30Day(h.id);
-        const count = arr.filter(Boolean).length;
-        const cells = arr.map(dn => '<div class="grid-cell' + (dn ? ' done' : '') + '"></div>').join('');
-        const isLast = idx === data.habits.length - 1;
-        html += '<div class="habit-stat"' + (isLast ? ' style="border-bottom: none;"' : '') + '><div class="habit-stat-head"><span class="habit-stat-name">' + h.name + '</span><span class="habit-stat-meta">' + count + ' / 30</span></div><div class="grid-30">' + cells + '</div></div>';
-      });
-      html += '</div>';
-    }
-    return html;
-  }
-
-  function exportData() {
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'habits-backup-' + today() + '.json';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }
-  function importData(file) {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const parsed = JSON.parse(e.target.result);
-        if (confirm('Replace all current data with the imported file?')) {
-          data = parsed;
-          save();
-          render();
+        function load() {
+            try {
+                const stored = localStorage.getItem(KEY);
+                if (stored) Object.assign(data, JSON.parse(stored));
+            } catch (e) { console.warn('load failed', e); }
+            if (data.weekViewDay === null || data.weekViewDay === undefined) data.weekViewDay = todayDow();
+            setHeader();
+            render();
         }
-      } catch (err) { alert('Could not read that file.'); }
-    };
-    reader.readAsText(file);
-  }
-  function resetAll() {
-    if (confirm('Wipe all data and start fresh? This cannot be undone.')) {
-      localStorage.removeItem(KEY);
-      location.reload();
+        function save() {
+            try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) { console.warn('save failed', e); }
+        }
+
+        function setHeader() {
+            const now = new Date();
+            const h = now.getHours();
+            let g = 'Good morning';
+            if (h >= 12 && h < 18) g = 'Good afternoon';
+            else if (h >= 18) g = 'Good evening';
+            document.getElementById('greet').textContent = g + ', Eoghan';
+            document.getElementById('date-line').textContent = now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+            document.getElementById('phone-time').textContent = now.toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit', hour12: false });
+        }
+        function renderHero() {
+            const d = today();
+            const total = data.habits.length;
+            const done = data.habits.filter(h => isDone(h.id, d)).length;
+            const todayProtein = data.protein[d] || 0;
+            const html = '<div class="hero-stat"><div class="hero-stat-label">Today</div><div class="hero-stat-val">' + done + '<span class="small">/' + total + '</span></div></div>' +
+                        '<div class="hero-stat"><div class="hero-stat-label">Protein</div><div class="hero-stat-val">' + Math.round(todayProtein) + '<span class="small">g</span></div></div>';
+            document.getElementById('hero-stats').innerHTML = html;
+        }
+
+        function isDone(id, d) { return !!(data.log[d] && data.log[d][id]); }
+        function toggleHabit(id) { const d = today(); if (!data.log[d]) data.log[d] = {}; data.log[d][id] = !data.log[d][id]; save(); render(); }
+        function isHustleDone(id, d) { return !!(data.hustleLog[d] && data.hustleLog[d][id]); }
+        function toggleHustle(id) { const d = today(); if (!data.hustleLog[d]) data.hustleLog[d] = {}; data.hustleLog[d][id] = !data.hustleLog[d][id]; save(); render(); }
+        function isRemDone(id, w) { return !!(data.weeklyRemLog[w] && data.weeklyRemLog[w][id]); }
+        function toggleRem(id) { const wk = getWeekKey(); if (!data.weeklyRemLog[wk]) data.weeklyRemLog[wk] = {}; data.weeklyRemLog[wk][id] = !data.weeklyRemLog[wk][id]; save(); render(); }
+        function getWeekKey() { const d = new Date(); const o = new Date(d.getFullYear(), 0, 1); const w = Math.ceil((((d - o) / 86400000) + o.getDay() + 1) / 7); return d.getFullYear() + '-W' + w; }
+        function get30Day(id) { const arr = []; for (let i = 29; i >= 0; i--) arr.push(isDone(id, daysAgo(i))); return arr; }
+
+        function render() {
+            if (nowTimer) { clearInterval(nowTimer); nowTimer = null; }
+            document.querySelectorAll('.app-tab').forEach(el => el.classList.toggle('active', el.getAttribute('data-tab') === activeTab));
+            renderHero();
+            const body = document.getElementById('app-body');
+            if (activeTab === 'today') body.innerHTML = renderToday();
+            else if (activeTab === 'hustle') body.innerHTML = renderHustle();
+            else if (activeTab === 'schedule') { body.innerHTML = renderSchedule(); positionNowLine(); nowTimer = setInterval(positionNowLine, 60000); }
+            else if (activeTab === 'manage') body.innerHTML = renderManage();
+            else body.innerHTML = renderStats();
+            bindEvents();
+        }
+
+        function renderToday() {
+            const d = today();
+            const todayProtein = data.protein[d] || 0;
+            const total = data.habits.length;
+            const done = data.habits.filter(h => isDone(h.id, d)).length;
+            const pct = data.proteinTarget > 0 ? Math.min(100, Math.round(todayProtein / data.proteinTarget * 100)) : 0;
+            let html = '';
+
+            const wk = getWeekKey();
+            const tIdx = todayDow();
+            const dueRems = data.weeklyReminders.filter(r => r.days.includes(tIdx));
+            if (dueRems.length > 0) {
+            html += '<div class="due-card"><div class="section-title" style="margin-bottom: 4px;">Due today</div>';
+            dueRems.forEach(r => {
+                const ck = isRemDone(r.id, wk);
+                html += '<div class="habit-row" data-rem="' + r.id + '" style="padding: 8px 0;"><div class="checkbox' + (ck ? ' checked' : '') + '"><svg viewBox="0 0 12 12"><path d="M2 6l3 3 5-6" stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="habit-name' + (ck ? ' done' : '') + '">' + r.name + '</span><span class="day-pill-mini">weekly</span></div>';
+            });
+            html += '</div>';
+            }
+
+            html += '<div class="protein-card"><div class="protein-row"><span class="protein-label">Protein</span><span class="protein-val">' + Math.round(todayProtein) + 'g <span class="target">of ' + data.proteinTarget + 'g</span></span></div><div class="protein-bar-bg"><div class="protein-bar-fill" style="width: ' + pct + '%"></div></div><div class="protein-input-row"><input type="number" id="protein-add" placeholder="Add grams" inputmode="numeric" /><button class="btn-primary" id="protein-btn">Add</button></div></div>';
+            html += '<div class="section-head spaced"><p class="section-title">Habits</p><span class="section-count">' + done + ' of ' + total + '</span></div>';
+
+            data.categories.forEach(cat => {
+            const habits = data.habits.filter(h => h.cat === cat.id);
+            if (habits.length === 0) return;
+            const catDone = habits.filter(h => isDone(h.id, d)).length;
+            html += '<div class="cat-card"><div class="cat-head' + (habits.length === 1 ? ' no-border' : '') + '"><span class="cat-name">' + cat.name + '</span><span class="cat-meta">' + catDone + ' / ' + habits.length + '</span></div>';
+            habits.forEach(h => {
+                const ck = isDone(h.id, d);
+                html += '<div class="habit-row" data-habit="' + h.id + '"><div class="checkbox' + (ck ? ' checked' : '') + '"><svg viewBox="0 0 12 12"><path d="M2 6l3 3 5-6" stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="habit-name' + (ck ? ' done' : '') + '">' + h.name + '</span></div>';
+            });
+            html += '</div>';
+            });
+            return html;
+        }
+
+        function renderHustle() {
+            const d = today();
+            const total = data.hustleHabits.length;
+            const done = data.hustleHabits.filter(h => isHustleDone(h.id, d)).length;
+            let html = '<div class="section-head"><p class="section-title">Today\'s uploads</p><span class="section-count">' + done + ' of ' + total + '</span></div>';
+
+            if (data.hustleHabits.length === 0) {
+            html += '<div class="empty">No hustle items yet. Add one in Manage.</div>';
+            } else {
+            html += '<div class="cat-card"><div class="cat-head no-border" style="padding-bottom: 4px;"><span class="cat-name">Channels</span></div>';
+            data.hustleHabits.forEach(h => {
+                const ck = isHustleDone(h.id, d);
+                html += '<div class="habit-row" data-hustle="' + h.id + '"><div class="checkbox' + (ck ? ' checked' : '') + '"><svg viewBox="0 0 12 12"><path d="M2 6l3 3 5-6" stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="habit-name' + (ck ? ' done' : '') + '">' + h.name + '</span></div>';
+            });
+            html += '</div>';
+            }
+
+            let total7 = 0, possible7 = 0;
+            for (let i = 0; i < 7; i++) {
+            const day = daysAgo(i);
+            data.hustleHabits.forEach(h => { possible7++; if (isHustleDone(h.id, day)) total7++; });
+            }
+            const pct7 = possible7 > 0 ? Math.round(total7 / possible7 * 100) : 0;
+            html += '<div class="section-head spaced"><p class="section-title">Last 7 days</p><span class="section-count">' + pct7 + '%</span></div>';
+            if (data.hustleHabits.length > 0) {
+            html += '<div class="cat-card">';
+            data.hustleHabits.forEach((h, idx) => {
+                const arr = [];
+                for (let i = 6; i >= 0; i--) arr.push(isHustleDone(h.id, daysAgo(i)));
+                const cells = arr.map(d2 => '<div class="grid-cell' + (d2 ? ' done' : '') + '"></div>').join('');
+                const count = arr.filter(Boolean).length;
+                const isLast = idx === data.hustleHabits.length - 1;
+                html += '<div class="habit-stat"' + (isLast ? ' style="border-bottom: none;"' : '') + '><div class="habit-stat-head"><span class="habit-stat-name">' + h.name + '</span><span class="habit-stat-meta">' + count + ' / 7</span></div><div class="grid-7">' + cells + '</div></div>';
+            });
+            html += '</div>';
+            }
+            return html;
+        }
+
+        function renderSchedule() {
+            const tIdx = todayDow();
+            let html = '<div class="day-pill-row">';
+            dayNames.forEach((name, i) => {
+            const cls = ['day-pill', i === data.weekViewDay ? 'active' : '', i === tIdx ? 'is-today' : ''].filter(Boolean).join(' ');
+            html += '<div class="' + cls + '" data-day="' + i + '">' + name + '</div>';
+            });
+            html += '</div>';
+
+            const blocks = data.schedule[data.weekViewDay] || [];
+            const isToday = data.weekViewDay === tIdx;
+            const nowMin = isToday ? minutesNow() : -1;
+
+            html += '<div class="cat-card"><div class="sched-day-name">' + dayNamesFull[data.weekViewDay] + (isToday ? '<span class="today-tag">today</span>' : '') + '</div>';
+            if (blocks.length === 0) {
+            html += '<div class="empty">No blocks for this day.</div>';
+            } else {
+            html += '<div class="sched-list" id="sched-list">';
+            blocks.forEach((b, i) => {
+                const blockMin = parseHM(b.time);
+                const next = blocks[i + 1];
+                const nextMin = next ? parseHM(next.time) : 24 * 60;
+                let stateCls = '';
+                if (isToday) {
+                if (nowMin >= blockMin && nowMin < nextMin) stateCls = ' current';
+                else if (nowMin >= nextMin) stateCls = ' past';
+                }
+                html += '<div class="sched-block' + stateCls + '" data-block-min="' + blockMin + '" data-block-next="' + nextMin + '"><div class="sched-time">' + b.time + '</div><div class="sched-text">' + b.text + '</div></div>';
+            });
+            if (isToday) html += '<div class="now-line" id="now-line" style="display: none;"><span class="now-time" id="now-time">' + fmtNow() + '</span><span class="now-bar"></span></div>';
+            html += '</div>';
+            }
+            html += '</div>';
+            html += '<div class="sched-hint">Loose plan, edit and adapt as you go.</div>';
+            return html;
+        }
+
+        function positionNowLine() {
+            const line = document.getElementById('now-line');
+            if (!line) return;
+            const isToday = data.weekViewDay === todayDow();
+            if (!isToday) { line.style.display = 'none'; return; }
+            const list = document.getElementById('sched-list');
+            if (!list) return;
+            const blocks = list.querySelectorAll('.sched-block');
+            if (blocks.length === 0) { line.style.display = 'none'; return; }
+            const nowMin = minutesNow();
+            document.getElementById('now-time').textContent = fmtNow();
+
+            const firstBlock = blocks[0];
+            const lastBlock = blocks[blocks.length - 1];
+            const firstMin = parseInt(firstBlock.getAttribute('data-block-min'));
+            const lastMin = parseInt(lastBlock.getAttribute('data-block-min'));
+
+            let topPx;
+            if (nowMin < firstMin) topPx = firstBlock.offsetTop - 6;
+            else if (nowMin >= lastMin) {
+            const lastNext = parseInt(lastBlock.getAttribute('data-block-next'));
+            const into = Math.min(1, (nowMin - lastMin) / Math.max(1, (lastNext - lastMin)));
+            topPx = lastBlock.offsetTop + lastBlock.offsetHeight * into;
+            } else {
+            let foundBlock = null;
+            for (let i = 0; i < blocks.length; i++) {
+                const bMin = parseInt(blocks[i].getAttribute('data-block-min'));
+                const nMin = parseInt(blocks[i].getAttribute('data-block-next'));
+                if (nowMin >= bMin && nowMin < nMin) { foundBlock = blocks[i]; break; }
+            }
+            if (foundBlock) {
+                const bMin = parseInt(foundBlock.getAttribute('data-block-min'));
+                const nMin = parseInt(foundBlock.getAttribute('data-block-next'));
+                const frac = (nowMin - bMin) / Math.max(1, (nMin - bMin));
+                topPx = foundBlock.offsetTop + foundBlock.offsetHeight * frac;
+            } else {
+                topPx = firstBlock.offsetTop;
+            }
+            }
+            line.style.top = topPx + 'px';
+            line.style.display = 'flex';
+
+            blocks.forEach(b => {
+            const bMin = parseInt(b.getAttribute('data-block-min'));
+            const nMin = parseInt(b.getAttribute('data-block-next'));
+            b.classList.remove('past', 'current');
+            if (nowMin >= bMin && nowMin < nMin) b.classList.add('current');
+            else if (nowMin >= nMin) b.classList.add('past');
+            });
+        }
+
+        function renderManage() {
+            let html = '<div class="section-head"><p class="section-title">Categories</p><span class="add-link" id="add-cat-toggle">+ add</span></div>';
+            if (showAddCat) html += '<div class="add-form"><input type="text" id="new-cat-name" placeholder="Category name" /><button class="btn-primary" id="save-cat" style="width: 100%; height: 40px;">Save</button></div>';
+            data.categories.forEach(c => {
+            const count = data.habits.filter(h => h.cat === c.id).length;
+            html += '<div class="manage-item"><div><div class="manage-item-name">' + c.name + '</div><div class="manage-item-meta">' + count + ' habits</div></div><span class="del-x" data-del-cat="' + c.id + '">remove</span></div>';
+            });
+
+            html += '<div class="section-head spaced"><p class="section-title">Personal habits</p><span class="add-link" id="add-habit-toggle">+ add</span></div>';
+            if (showAddHabit) {
+            let opts = data.categories.map(c => '<option value="' + c.id + '">' + c.name + '</option>').join('');
+            html += '<div class="add-form"><input type="text" id="new-habit-name" placeholder="Habit name" /><select id="new-habit-cat">' + opts + '</select><button class="btn-primary" id="save-habit" style="width: 100%; height: 40px;">Save</button></div>';
+            }
+            data.habits.forEach(h => {
+            const cat = data.categories.find(c => c.id === h.cat);
+            html += '<div class="manage-item"><div><div class="manage-item-name">' + h.name + '</div><div class="manage-item-meta">' + (cat ? cat.name : 'uncategorised') + '</div></div><span class="del-x" data-del-habit="' + h.id + '">remove</span></div>';
+            });
+
+            html += '<div class="section-head spaced"><p class="section-title">Side hustle items</p><span class="add-link" id="add-hustle-toggle">+ add</span></div>';
+            if (showAddHustle) html += '<div class="add-form"><input type="text" id="new-hustle-name" placeholder="Hustle item name" /><button class="btn-primary" id="save-hustle" style="width: 100%; height: 40px;">Save</button></div>';
+            data.hustleHabits.forEach(h => {
+            html += '<div class="manage-item"><div class="manage-item-name">' + h.name + '</div><span class="del-x" data-del-hustle="' + h.id + '">remove</span></div>';
+            });
+
+            html += '<div class="section-head spaced"><p class="section-title">Weekly reminders</p><span class="add-link" id="add-rem-toggle">+ add</span></div>';
+            if (showAddRem) {
+            let dayChecks = dayNames.map((n, i) => '<span class="day-check' + (newRemDays.includes(i) ? ' on' : '') + '" data-rem-day="' + i + '">' + n + '</span>').join('');
+            html += '<div class="add-form"><input type="text" id="new-rem-name" placeholder="Reminder name" /><div class="day-checks">' + dayChecks + '</div><button class="btn-primary" id="save-rem" style="width: 100%; height: 40px;">Save</button></div>';
+            }
+            data.weeklyReminders.forEach(r => {
+            const dayLabels = r.days.map(d => dayNames[d]).join(', ');
+            html += '<div class="manage-item"><div><div class="manage-item-name">' + r.name + '</div><div class="manage-item-meta">' + dayLabels + '</div></div><span class="del-x" data-del-rem="' + r.id + '">remove</span></div>';
+            });
+
+            html += '<div class="section-head spaced"><p class="section-title">Settings</p></div>';
+            html += '<div class="manage-item" style="display: block;"><div class="manage-item-name" style="margin-bottom: 8px;">Protein target</div><input type="number" id="protein-target" value="' + data.proteinTarget + '" inputmode="numeric" style="width: 100%; height: 38px; font-size: 14px; padding: 0 12px; border: 0.5px solid var(--color-border-secondary); border-radius: 10px; background: var(--color-background-primary); color: var(--color-text-primary);" /></div>';
+
+            html += '<div class="section-head spaced"><p class="section-title">Data</p></div>';
+            html += '<div class="manage-item" style="display: block;">';
+            html += '<div class="manage-item-meta" style="margin-bottom: 8px;">Backup or move data between devices</div>';
+            html += '<div class="data-actions"><button class="data-btn" id="export-btn">Export JSON</button><button class="data-btn" id="import-btn">Import JSON</button><button class="data-btn" id="reset-btn" style="color: var(--color-text-warning);">Reset all data</button></div>';
+            html += '</div>';
+            return html;
+        }
+
+        function renderStats() {
+            let total7 = 0, possible7 = 0;
+            for (let i = 0; i < 7; i++) {
+            const day = daysAgo(i);
+            data.habits.forEach(h => { possible7++; if (isDone(h.id, day)) total7++; });
+            }
+            const pct7 = possible7 > 0 ? Math.round(total7 / possible7 * 100) : 0;
+            const totalHabits = data.habits.length;
+
+            let html = '<div style="display: flex; gap: 8px; margin-bottom: 16px;">' +
+                    '<div class="hero-stat" style="flex: 1;"><div class="hero-stat-label">7-day rate</div><div class="hero-stat-val">' + pct7 + '<span class="small">%</span></div></div>' +
+                    '<div class="hero-stat" style="flex: 1;"><div class="hero-stat-label">Habits</div><div class="hero-stat-val">' + totalHabits + '</div></div>' +
+                    '</div>';
+
+            html += '<div class="section-head"><p class="section-title">30-day history</p></div>';
+            if (data.habits.length === 0) {
+            html += '<div class="empty">Add habits to see history.</div>';
+            } else {
+            html += '<div class="cat-card">';
+            data.habits.forEach((h, idx) => {
+                const arr = get30Day(h.id);
+                const count = arr.filter(Boolean).length;
+                const cells = arr.map(dn => '<div class="grid-cell' + (dn ? ' done' : '') + '"></div>').join('');
+                const isLast = idx === data.habits.length - 1;
+                html += '<div class="habit-stat"' + (isLast ? ' style="border-bottom: none;"' : '') + '><div class="habit-stat-head"><span class="habit-stat-name">' + h.name + '</span><span class="habit-stat-meta">' + count + ' / 30</span></div><div class="grid-30">' + cells + '</div></div>';
+            });
+            html += '</div>';
+            }
+            return html;
+        }
+
+        function exportData() {
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'habits-backup-' + today() + '.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+        function importData(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+            try {
+                const parsed = JSON.parse(e.target.result);
+                if (confirm('Replace all current data with the imported file?')) {
+                data = parsed;
+                save();
+                render();
+                }
+            } catch (err) { alert('Could not read that file.'); }
+            };
+            reader.readAsText(file);
+        }
+        function resetAll() {
+            if (confirm('Wipe all data and start fresh? This cannot be undone.')) {
+            localStorage.removeItem(KEY);
+            location.reload();
+            }
+        }
+
+        function bindEvents() {
+            document.querySelectorAll('.app-tab').forEach(el => {
+            el.onclick = () => { activeTab = el.getAttribute('data-tab'); showAddHabit = false; showAddCat = false; showAddHustle = false; showAddRem = false; newRemDays = []; render(); };
+            });
+            document.querySelectorAll('.habit-row[data-habit]').forEach(el => { el.onclick = () => toggleHabit(el.getAttribute('data-habit')); });
+            document.querySelectorAll('.habit-row[data-hustle]').forEach(el => { el.onclick = () => toggleHustle(el.getAttribute('data-hustle')); });
+            document.querySelectorAll('.habit-row[data-rem]').forEach(el => { el.onclick = () => toggleRem(el.getAttribute('data-rem')); });
+            document.querySelectorAll('.day-pill').forEach(el => { el.onclick = () => { data.weekViewDay = parseInt(el.getAttribute('data-day')); save(); render(); }; });
+            const pBtn = document.getElementById('protein-btn');
+            if (pBtn) pBtn.onclick = () => { const v = parseFloat(document.getElementById('protein-add').value); if (!isNaN(v) && v > 0) { const d = today(); data.protein[d] = (data.protein[d] || 0) + v; save(); render(); } };
+            const ach = document.getElementById('add-cat-toggle'); if (ach) ach.onclick = () => { showAddCat = !showAddCat; render(); };
+            const sc = document.getElementById('save-cat'); if (sc) sc.onclick = () => { const n = document.getElementById('new-cat-name').value.trim(); if (n) { data.categories.push({ id: 'c' + Date.now(), name: n }); showAddCat = false; save(); render(); } };
+            const ahh = document.getElementById('add-habit-toggle'); if (ahh) ahh.onclick = () => { showAddHabit = !showAddHabit; render(); };
+            const sh = document.getElementById('save-habit'); if (sh) sh.onclick = () => { const n = document.getElementById('new-habit-name').value.trim(); const c = document.getElementById('new-habit-cat').value; if (n && c) { data.habits.push({ id: 'h' + Date.now(), name: n, cat: c }); showAddHabit = false; save(); render(); } };
+            const ahuh = document.getElementById('add-hustle-toggle'); if (ahuh) ahuh.onclick = () => { showAddHustle = !showAddHustle; render(); };
+            const shh = document.getElementById('save-hustle'); if (shh) shh.onclick = () => { const n = document.getElementById('new-hustle-name').value.trim(); if (n) { data.hustleHabits.push({ id: 'sh' + Date.now(), name: n }); showAddHustle = false; save(); render(); } };
+            const arh = document.getElementById('add-rem-toggle'); if (arh) arh.onclick = () => { showAddRem = !showAddRem; if (!showAddRem) newRemDays = []; render(); };
+            document.querySelectorAll('[data-rem-day]').forEach(el => { el.onclick = () => { const i = parseInt(el.getAttribute('data-rem-day')); if (newRemDays.includes(i)) newRemDays = newRemDays.filter(x => x !== i); else newRemDays.push(i); render(); }; });
+            const srm = document.getElementById('save-rem'); if (srm) srm.onclick = () => { const n = document.getElementById('new-rem-name').value.trim(); if (n && newRemDays.length > 0) { data.weeklyReminders.push({ id: 'wr' + Date.now(), name: n, days: newRemDays.slice().sort() }); showAddRem = false; newRemDays = []; save(); render(); } };
+            document.querySelectorAll('[data-del-habit]').forEach(el => { el.onclick = (e) => { e.stopPropagation(); const id = el.getAttribute('data-del-habit'); data.habits = data.habits.filter(h => h.id !== id); save(); render(); }; });
+            document.querySelectorAll('[data-del-cat]').forEach(el => { el.onclick = (e) => { e.stopPropagation(); const id = el.getAttribute('data-del-cat'); const used = data.habits.some(h => h.cat === id); if (used) { alert('Move or remove habits in this category first.'); return; } data.categories = data.categories.filter(c => c.id !== id); save(); render(); }; });
+            document.querySelectorAll('[data-del-hustle]').forEach(el => { el.onclick = (e) => { e.stopPropagation(); const id = el.getAttribute('data-del-hustle'); data.hustleHabits = data.hustleHabits.filter(h => h.id !== id); save(); render(); }; });
+            document.querySelectorAll('[data-del-rem]').forEach(el => { el.onclick = (e) => { e.stopPropagation(); const id = el.getAttribute('data-del-rem'); data.weeklyReminders = data.weeklyReminders.filter(r => r.id !== id); save(); render(); }; });
+            const pt = document.getElementById('protein-target'); if (pt) pt.onchange = () => { const v = parseInt(pt.value); if (!isNaN(v) && v > 0) { data.proteinTarget = v; save(); } };
+            const eb = document.getElementById('export-btn'); if (eb) eb.onclick = exportData;
+            const ib = document.getElementById('import-btn'); if (ib) ib.onclick = () => document.getElementById('import-file').click();
+            const rb = document.getElementById('reset-btn'); if (rb) rb.onclick = resetAll;
+        }
+
+        document.getElementById('import-file').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) importData(file);
+            e.target.value = '';
+        });
+
+        load();
+        setInterval(setHeader, 60000);
     }
-  }
-
-  function bindEvents() {
-    document.querySelectorAll('.app-tab').forEach(el => {
-      el.onclick = () => { activeTab = el.getAttribute('data-tab'); showAddHabit = false; showAddCat = false; showAddHustle = false; showAddRem = false; newRemDays = []; render(); };
-    });
-    document.querySelectorAll('.habit-row[data-habit]').forEach(el => { el.onclick = () => toggleHabit(el.getAttribute('data-habit')); });
-    document.querySelectorAll('.habit-row[data-hustle]').forEach(el => { el.onclick = () => toggleHustle(el.getAttribute('data-hustle')); });
-    document.querySelectorAll('.habit-row[data-rem]').forEach(el => { el.onclick = () => toggleRem(el.getAttribute('data-rem')); });
-    document.querySelectorAll('.day-pill').forEach(el => { el.onclick = () => { data.weekViewDay = parseInt(el.getAttribute('data-day')); save(); render(); }; });
-    const pBtn = document.getElementById('protein-btn');
-    if (pBtn) pBtn.onclick = () => { const v = parseFloat(document.getElementById('protein-add').value); if (!isNaN(v) && v > 0) { const d = today(); data.protein[d] = (data.protein[d] || 0) + v; save(); render(); } };
-    const ach = document.getElementById('add-cat-toggle'); if (ach) ach.onclick = () => { showAddCat = !showAddCat; render(); };
-    const sc = document.getElementById('save-cat'); if (sc) sc.onclick = () => { const n = document.getElementById('new-cat-name').value.trim(); if (n) { data.categories.push({ id: 'c' + Date.now(), name: n }); showAddCat = false; save(); render(); } };
-    const ahh = document.getElementById('add-habit-toggle'); if (ahh) ahh.onclick = () => { showAddHabit = !showAddHabit; render(); };
-    const sh = document.getElementById('save-habit'); if (sh) sh.onclick = () => { const n = document.getElementById('new-habit-name').value.trim(); const c = document.getElementById('new-habit-cat').value; if (n && c) { data.habits.push({ id: 'h' + Date.now(), name: n, cat: c }); showAddHabit = false; save(); render(); } };
-    const ahuh = document.getElementById('add-hustle-toggle'); if (ahuh) ahuh.onclick = () => { showAddHustle = !showAddHustle; render(); };
-    const shh = document.getElementById('save-hustle'); if (shh) shh.onclick = () => { const n = document.getElementById('new-hustle-name').value.trim(); if (n) { data.hustleHabits.push({ id: 'sh' + Date.now(), name: n }); showAddHustle = false; save(); render(); } };
-    const arh = document.getElementById('add-rem-toggle'); if (arh) arh.onclick = () => { showAddRem = !showAddRem; if (!showAddRem) newRemDays = []; render(); };
-    document.querySelectorAll('[data-rem-day]').forEach(el => { el.onclick = () => { const i = parseInt(el.getAttribute('data-rem-day')); if (newRemDays.includes(i)) newRemDays = newRemDays.filter(x => x !== i); else newRemDays.push(i); render(); }; });
-    const srm = document.getElementById('save-rem'); if (srm) srm.onclick = () => { const n = document.getElementById('new-rem-name').value.trim(); if (n && newRemDays.length > 0) { data.weeklyReminders.push({ id: 'wr' + Date.now(), name: n, days: newRemDays.slice().sort() }); showAddRem = false; newRemDays = []; save(); render(); } };
-    document.querySelectorAll('[data-del-habit]').forEach(el => { el.onclick = (e) => { e.stopPropagation(); const id = el.getAttribute('data-del-habit'); data.habits = data.habits.filter(h => h.id !== id); save(); render(); }; });
-    document.querySelectorAll('[data-del-cat]').forEach(el => { el.onclick = (e) => { e.stopPropagation(); const id = el.getAttribute('data-del-cat'); const used = data.habits.some(h => h.cat === id); if (used) { alert('Move or remove habits in this category first.'); return; } data.categories = data.categories.filter(c => c.id !== id); save(); render(); }; });
-    document.querySelectorAll('[data-del-hustle]').forEach(el => { el.onclick = (e) => { e.stopPropagation(); const id = el.getAttribute('data-del-hustle'); data.hustleHabits = data.hustleHabits.filter(h => h.id !== id); save(); render(); }; });
-    document.querySelectorAll('[data-del-rem]').forEach(el => { el.onclick = (e) => { e.stopPropagation(); const id = el.getAttribute('data-del-rem'); data.weeklyReminders = data.weeklyReminders.filter(r => r.id !== id); save(); render(); }; });
-    const pt = document.getElementById('protein-target'); if (pt) pt.onchange = () => { const v = parseInt(pt.value); if (!isNaN(v) && v > 0) { data.proteinTarget = v; save(); } };
-    const eb = document.getElementById('export-btn'); if (eb) eb.onclick = exportData;
-    const ib = document.getElementById('import-btn'); if (ib) ib.onclick = () => document.getElementById('import-file').click();
-    const rb = document.getElementById('reset-btn'); if (rb) rb.onclick = resetAll;
-  }
-
-  document.getElementById('import-file').addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file) importData(file);
-    e.target.value = '';
-  });
-
-  load();
-  setInterval(setHeader, 60000);
 })();
 </script>
 </body>
